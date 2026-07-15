@@ -22,6 +22,7 @@
   let recognition = null;
   let recognitionMode = 'game';
   let recognitionAttemptId = 0;
+  let phraseBiasUnavailable = false;
   let hintTimer = null;
   let audioContext = null;
   let selectedAvatars = { A: 'rocket', B: 'star' };
@@ -203,13 +204,17 @@
     instance.continuous = false;
     instance.interimResults = false;
     instance.maxAlternatives = 5;
-    const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
-    if (SpeechGrammarList) {
+    const SpeechRecognitionPhrase = window.SpeechRecognitionPhrase || window.webkitSpeechRecognitionPhrase;
+    if (!phraseBiasUnavailable && SpeechRecognitionPhrase && 'phrases' in instance) {
       try {
-        const directions = new SpeechGrammarList();
-        directions.addFromString('#JSGF V1.0; grammar directions; public <direction> = clockwise | counterclockwise | anticlockwise;', 1);
-        instance.grammars = directions;
-      } catch (_) { /* Some Chrome versions expose grammars but do not implement them. */ }
+        instance.phrases = [
+          new SpeechRecognitionPhrase('clockwise', 7),
+          new SpeechRecognitionPhrase('counterclockwise', 7),
+          new SpeechRecognitionPhrase('counter clockwise', 6),
+          new SpeechRecognitionPhrase('anticlockwise', 6),
+          new SpeechRecognitionPhrase('anti clockwise', 6)
+        ];
+      } catch (_) { phraseBiasUnavailable = true; }
     }
     return instance;
   }
@@ -219,6 +224,7 @@
     if (error === 'audio-capture') return 'No microphone was found. Check the microphone and try again.';
     if (error === 'no-speech') return 'I couldn’t hear you. Please try again.';
     if (error === 'network') return 'Speech recognition is temporarily unavailable.';
+    if (error === 'phrases-not-supported') return 'Word hints are unavailable in this Chrome version. Please try again.';
     return 'The microphone had a problem. Please try again.';
   }
 
@@ -301,9 +307,11 @@
     if (direction === 'invalid') {
       state.failedSpeechAttempts += 1;
       setPhase(state.challengeDirection ? 'event' : 'waiting-for-speech');
-      const languageMessage = Core.containsCjk(topTranscript)
-        ? 'The microphone heard Chinese. Please say only the English direction word.'
-        : 'Please say the whole English direction word.';
+      const languageMessage = Core.isClockFragment(topTranscript)
+        ? 'The microphone stopped at “clock.” Please say “Go clockwise” in one smooth phrase.'
+        : Core.containsCjk(topTranscript)
+          ? 'The microphone heard Chinese. Please say only the English direction word.'
+          : 'Please say the whole English direction word.';
       setMessage(languageMessage, `I heard: ${topTranscript || 'nothing recognizable'}`);
       $('#retry-speech').hidden = false;
       if (state.failedSpeechAttempts >= 3) setMessage('Ask the teacher for help. Your die result is safe.', `I heard: ${topTranscript || 'nothing recognizable'}`);
@@ -330,6 +338,7 @@
   }
 
   function handleSpeechError(error, mode) {
+    if (error === 'phrases-not-supported') phraseBiasUnavailable = true;
     const message = recognitionErrorMessage(error);
     if (mode === 'test') {
       $('#test-status').textContent = message;

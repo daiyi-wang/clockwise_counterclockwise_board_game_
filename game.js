@@ -55,7 +55,8 @@
   function detectDirection(transcript) {
     const text = normalizeTranscript(transcript);
     if (text.includes('counterclockwise') || text.includes('counter clockwise') ||
-        text.includes('anticlockwise') || text.includes('anti clockwise')) {
+        text.includes('counter clock') || text.includes('anticlockwise') ||
+        text.includes('anti clockwise') || text.includes('anti clock')) {
       return 'counterclockwise';
     }
     if (text.includes('clockwise')) return 'clockwise';
@@ -79,6 +80,10 @@
 
   function containsCjk(text) {
     return /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff]/u.test(String(text || ''));
+  }
+
+  function isClockFragment(text) {
+    return normalizeTranscript(text) === 'clock';
   }
 
   function calculatePosition(position, steps, direction, boardLength = BOARD_SPACES.length) {
@@ -163,7 +168,7 @@
 
   return {
     SUITS, SUIT_META, BOARD_SPACES, emptyCollection, normalizeTranscript, detectDirection,
-    selectDirectionCandidate, containsCjk, calculatePosition, movementPath, generateTargetCard, canExchange, performExchange,
+    selectDirectionCandidate, containsCjk, isClockFragment, calculatePosition, movementPath, generateTargetCard, canExchange, performExchange,
     checkVictory, randomSuit, createGameState
   };
 });
