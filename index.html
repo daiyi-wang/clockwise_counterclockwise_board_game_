@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#15324b">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23ffd84a%22/><text x=%226%22 y=%2225%22 font-size=%2224%22>↻</text></svg>">
+  <title>Spin & Speak</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Spin and Speak home">
+        <span class="brand-mark" aria-hidden="true">↻</span>
+        <span><b>SPIN</b> &amp; SPEAK</span>
+      </a>
+      <div class="top-actions">
+        <button id="sound-toggle" class="icon-button" type="button" aria-label="Turn sound off" aria-pressed="true">♪</button>
+        <button id="teacher-toggle" class="teacher-button" type="button" aria-controls="teacher-panel" aria-expanded="false">Teacher</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="setup-screen" class="screen setup-screen">
+        <div class="setup-intro">
+          <p class="eyebrow">A speaking board game</p>
+          <h1>Choose a direction.<br><em>Say it</em> to move.</h1>
+          <p class="intro-copy">Two teams race around the compass, collect four suits, and speak their way to victory.</p>
+          <div class="mini-compass" aria-hidden="true"><span>↺</span><strong>VS</strong><span>↻</span></div>
+        </div>
+        <form id="setup-form" class="setup-card">
+          <h2>Set up the teams</h2>
+          <div class="team-setup team-a-setup">
+            <label for="team-a-name">Team A name</label>
+            <input id="team-a-name" maxlength="20" value="Team A" required>
+            <fieldset>
+              <legend>Choose Team A avatar</legend>
+              <div class="avatar-options" data-team="A"></div>
+            </fieldset>
+          </div>
+          <div class="versus-rule"><span>VS</span></div>
+          <div class="team-setup team-b-setup">
+            <label for="team-b-name">Team B name</label>
+            <input id="team-b-name" maxlength="20" value="Team B" required>
+            <fieldset>
+              <legend>Choose Team B avatar</legend>
+              <div class="avatar-options" data-team="B"></div>
+            </fieldset>
+          </div>
+          <div class="setup-options">
+            <label>Target level
+              <select id="difficulty">
+                <option value="8">Beginner · 8 cards</option>
+                <option value="10">Standard · 10 cards</option>
+                <option value="12">Challenge · 12 cards</option>
+              </select>
+            </label>
+            <label class="switch-row"><span>English hints</span><input id="hints-setting" type="checkbox"><span class="switch" aria-hidden="true"></span></label>
+            <label class="switch-row"><span>Sound effects</span><input id="sound-setting" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+          </div>
+          <button class="primary-button" type="submit">Test microphone <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+
+      <section id="mic-test-screen" class="screen mic-test-screen" hidden>
+        <div class="test-card">
+          <div class="test-orbit" aria-hidden="true"><span>↻</span></div>
+          <p class="eyebrow">One quick check</p>
+          <h1>Let’s test the microphone.</h1>
+          <p>Press the microphone and say <strong>“clockwise.”</strong></p>
+          <button id="test-mic-button" class="mic-button large" type="button" aria-label="Test microphone"><span aria-hidden="true">●</span><small>TEST MIC</small></button>
+          <p id="test-status" class="test-status" role="status" aria-live="polite">Ready when you are.</p>
+          <p id="test-transcript" class="transcript"></p>
+          <div class="test-actions">
+            <button id="retry-test" class="secondary-button" type="button" hidden>Try again</button>
+            <button id="begin-game" class="primary-button" type="button" disabled>Begin game</button>
+            <button id="skip-test" class="text-button" type="button">Teacher: skip test</button>
+          </div>
+          <p id="mic-help" class="help-text" hidden>Allow microphone access in Chrome, then try again. You can also skip the test and use Teacher controls.</p>
+        </div>
+      </section>
+
+      <section id="game-screen" class="screen game-screen" hidden>
+        <aside id="team-panel-a" class="team-panel team-a" aria-label="Team A information"></aside>
+        <section class="game-center" aria-label="Game board">
+          <div class="turn-banner"><span id="turn-dot"></span><strong id="turn-label">Team A’s turn</strong><small id="phase-label">ROLL THE DIE</small></div>
+          <div id="board" class="board" aria-label="24-space circular game board">
+            <div id="board-track" class="board-track"></div>
+            <div class="compass-center">
+              <div class="direction-arrows" aria-hidden="true"><span id="ccw-arrow">↺</span><span id="cw-arrow">↻</span></div>
+              <button id="die-button" class="die-button" type="button" aria-label="Roll the die"><span id="die-face">?</span><small>ROLL</small></button>
+              <div class="speech-controls">
+                <button id="mic-button" class="mic-button" type="button" aria-label="Start speech recognition" disabled><span aria-hidden="true">●</span><small>SPEAK</small></button>
+                <button id="hint-button" class="hint-button" type="button" hidden>Hint</button>
+              </div>
+              <div id="hint-words" class="hint-words" hidden><span>↺ counterclockwise</span><span>clockwise ↻</span></div>
+            </div>
+          </div>
+          <div class="message-card" aria-live="polite" aria-atomic="true">
+            <p id="main-message">Roll the die to start.</p>
+            <p id="recognized-text" class="recognized-text"></p>
+            <button id="retry-speech" class="secondary-button compact" type="button" hidden>Try again</button>
+          </div>
+        </section>
+        <aside id="team-panel-b" class="team-panel team-b" aria-label="Team B information"></aside>
+      </section>
+
+      <section id="victory-screen" class="screen victory-screen" hidden>
+        <div id="confetti" class="confetti" aria-hidden="true"></div>
+        <div class="victory-card">
+          <p class="eyebrow">Compass champion</p>
+          <div id="winner-avatar" class="winner-avatar"></div>
+          <h1 id="winner-title">Team A wins!</h1>
+          <p>Great speaking. Every suit is complete!</p>
+          <div id="winner-summary" class="winner-summary"></div>
+          <div class="victory-actions">
+            <button id="play-again" class="primary-button" type="button">Play again</button>
+            <button id="new-setup" class="secondary-button" type="button">New setup</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <aside id="teacher-panel" class="teacher-panel" hidden aria-label="Teacher controls">
+    <div class="teacher-head"><div><small>EMERGENCY CONTROLS</small><h2>Teacher panel</h2></div><button id="teacher-close" class="icon-button" type="button" aria-label="Close teacher panel">×</button></div>
+    <p>Use manual movement only after the student says the direction aloud.</p>
+    <button id="manual-ccw" type="button">↺ Move counterclockwise</button>
+    <button id="manual-cw" type="button">Move clockwise ↻</button>
+    <button id="teacher-retry" type="button">Retry microphone</button>
+    <button id="end-turn" type="button">End current turn</button>
+    <hr>
+    <label class="switch-row"><span>English hints</span><input id="teacher-hints" type="checkbox"><span class="switch" aria-hidden="true"></span></label>
+    <label class="switch-row"><span>Sound effects</span><input id="teacher-sound" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+    <button id="restart-game" class="danger-button" type="button">Restart game</button>
+  </aside>
+  <div id="scrim" class="scrim" hidden></div>
+
+  <dialog id="choice-dialog" class="game-dialog" aria-labelledby="dialog-title">
+    <h2 id="dialog-title"></h2>
+    <p id="dialog-copy"></p>
+    <div id="dialog-options" class="dialog-options"></div>
+    <div id="dialog-actions" class="dialog-actions"></div>
+  </dialog>
+
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
