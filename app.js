@@ -202,7 +202,15 @@
     instance.lang = 'en-US';
     instance.continuous = false;
     instance.interimResults = false;
-    instance.maxAlternatives = 1;
+    instance.maxAlternatives = 5;
+    const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
+    if (SpeechGrammarList) {
+      try {
+        const directions = new SpeechGrammarList();
+        directions.addFromString('#JSGF V1.0; grammar directions; public <direction> = clockwise | counterclockwise | anticlockwise;', 1);
+        instance.grammars = directions;
+      } catch (_) { /* Some Chrome versions expose grammars but do not implement them. */ }
+    }
     return instance;
   }
 
@@ -251,7 +259,12 @@
     recognition.onresult = (event) => {
       if (attemptId !== recognitionAttemptId || resultHandled) return;
       resultHandled = true;
-      handleSpeechResult(event.results[0][0].transcript, mode);
+      const result = event.results[event.resultIndex || 0];
+      const alternatives = Array.from(result || []).map((candidate) => ({
+        transcript: candidate.transcript,
+        confidence: candidate.confidence
+      }));
+      handleSpeechResult(alternatives, mode);
     };
     recognition.onerror = (event) => {
       if (attemptId !== recognitionAttemptId || resultHandled) return;
@@ -267,10 +280,11 @@
     try { recognition.start(); } catch (_) { handleSpeechError('aborted', mode); }
   }
 
-  function handleSpeechResult(transcript, mode) {
-    const direction = Core.detectDirection(transcript);
+  function handleSpeechResult(alternatives, mode) {
+    const choice = Core.selectDirectionCandidate(alternatives);
+    const { direction, transcript, topTranscript } = choice;
     if (mode === 'test') {
-      $('#test-transcript').textContent = `I heard: ${transcript}`;
+      $('#test-transcript').textContent = `I heard: ${topTranscript || transcript}`;
       if (direction === 'clockwise') {
         $('#test-status').textContent = 'Microphone ready!';
         $('#begin-game').disabled = false;
@@ -287,9 +301,12 @@
     if (direction === 'invalid') {
       state.failedSpeechAttempts += 1;
       setPhase(state.challengeDirection ? 'event' : 'waiting-for-speech');
-      setMessage('Please say the whole direction word.', `I heard: ${transcript}`);
+      const languageMessage = Core.containsCjk(topTranscript)
+        ? 'The microphone heard Chinese. Please say only the English direction word.'
+        : 'Please say the whole English direction word.';
+      setMessage(languageMessage, `I heard: ${topTranscript || 'nothing recognizable'}`);
       $('#retry-speech').hidden = false;
-      if (state.failedSpeechAttempts >= 3) setMessage('Ask the teacher for help. Your die result is safe.', `I heard: ${transcript}`);
+      if (state.failedSpeechAttempts >= 3) setMessage('Ask the teacher for help. Your die result is safe.', `I heard: ${topTranscript || 'nothing recognizable'}`);
       return;
     }
     if (state.challengeDirection && direction !== state.challengeDirection) {
@@ -304,7 +321,7 @@
     $('#retry-speech').hidden = true;
     state.failedSpeechAttempts = 0;
     playTone('correct');
-    setMessage(`I heard: ${direction}.`, 'Great speaking!');
+    setMessage(`I heard: ${transcript}.`, `Direction: ${direction}. Great speaking!`);
     highlightDirection(direction);
     const steps = state.challengeDirection ? 2 : state.dieValue;
     state.challengeDirection = null;

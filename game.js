@@ -62,6 +62,25 @@
     return 'invalid';
   }
 
+  function selectDirectionCandidate(alternatives) {
+    const candidates = Array.from(alternatives || []).map((candidate) => ({
+      transcript: typeof candidate === 'string' ? candidate : String(candidate?.transcript || ''),
+      confidence: typeof candidate === 'object' && Number.isFinite(candidate?.confidence) ? candidate.confidence : null
+    })).filter((candidate) => candidate.transcript.trim());
+    const topTranscript = candidates[0]?.transcript || '';
+    const valid = candidates.find((candidate) => detectDirection(candidate.transcript) !== 'invalid');
+    return {
+      direction: valid ? detectDirection(valid.transcript) : 'invalid',
+      transcript: valid?.transcript || topTranscript,
+      topTranscript,
+      confidence: valid?.confidence ?? null
+    };
+  }
+
+  function containsCjk(text) {
+    return /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff]/u.test(String(text || ''));
+  }
+
   function calculatePosition(position, steps, direction, boardLength = BOARD_SPACES.length) {
     if (direction === 'clockwise') return (position + steps) % boardLength;
     if (direction === 'counterclockwise') return (position - steps % boardLength + boardLength) % boardLength;
@@ -144,7 +163,7 @@
 
   return {
     SUITS, SUIT_META, BOARD_SPACES, emptyCollection, normalizeTranscript, detectDirection,
-    calculatePosition, movementPath, generateTargetCard, canExchange, performExchange,
+    selectDirectionCandidate, containsCjk, calculatePosition, movementPath, generateTargetCard, canExchange, performExchange,
     checkVictory, randomSuit, createGameState
   };
 });
