@@ -248,7 +248,8 @@
       return;
     }
     const attemptId = ++recognitionAttemptId;
-    let resultHandled = false;
+    let terminalHandled = false;
+    const resultsByIndex = new Map();
     if (state) {
       state.isListening = true;
       if (mode === 'game') setPhase(state.challengeDirection ? 'event' : 'listening');
@@ -263,18 +264,19 @@
       renderStatus();
     }
     recognition.onresult = (event) => {
-      if (attemptId !== recognitionAttemptId || resultHandled) return;
-      resultHandled = true;
-      const result = event.results[event.resultIndex || 0];
-      const alternatives = Array.from(result || []).map((candidate) => ({
-        transcript: candidate.transcript,
-        confidence: candidate.confidence
-      }));
-      handleSpeechResult(alternatives, mode);
+      if (attemptId !== recognitionAttemptId || terminalHandled) return;
+      const startIndex = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
+      for (let index = startIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        resultsByIndex.set(index, Array.from(result || []).map((candidate) => ({
+          transcript: candidate.transcript,
+          confidence: candidate.confidence
+        })));
+      }
     };
     recognition.onerror = (event) => {
-      if (attemptId !== recognitionAttemptId || resultHandled) return;
-      resultHandled = true;
+      if (attemptId !== recognitionAttemptId || terminalHandled) return;
+      terminalHandled = true;
       handleSpeechError(event.error, mode);
     };
     recognition.onend = () => {
@@ -282,8 +284,18 @@
       if (state) { state.isListening = false; renderStatus(); }
       $('#test-mic-button').classList.remove('listening');
       $('#test-mic-button').disabled = false;
+      if (terminalHandled) return;
+      terminalHandled = true;
+      const alternatives = Array.from(resultsByIndex.values()).flat();
+      if (alternatives.length) handleSpeechResult(alternatives, mode);
+      else handleSpeechError('no-speech', mode);
     };
-    try { recognition.start(); } catch (_) { handleSpeechError('aborted', mode); }
+    try {
+      recognition.start();
+    } catch (_) {
+      terminalHandled = true;
+      handleSpeechError('aborted', mode);
+    }
   }
 
   function handleSpeechResult(alternatives, mode) {
