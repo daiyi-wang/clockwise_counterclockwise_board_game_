@@ -21,6 +21,7 @@
   let state = null;
   let recognition = null;
   let recognitionMode = 'game';
+  let recognitionAttemptId = 0;
   let hintTimer = null;
   let audioContext = null;
   let selectedAvatars = { A: 'rocket', B: 'star' };
@@ -81,7 +82,10 @@
   }
 
   function renderTokens() {
-    $$('.board-space').forEach((space) => space.classList.remove('occupied'));
+    $$('.board-space').forEach((space) => {
+      space.classList.remove('occupied');
+      space.style.zIndex = '';
+    });
     $$('.token-slot').forEach((slot) => { slot.innerHTML = ''; });
     if (!state) return;
     ['A', 'B'].forEach((teamKey) => {
@@ -94,7 +98,9 @@
       token.setAttribute('aria-label', `${team.name} token`);
       token.textContent = AVATARS[team.avatar].symbol;
       slot.appendChild(token);
-      slot.closest('.board-space').classList.add('occupied');
+      const occupiedSpace = slot.closest('.board-space');
+      occupiedSpace.classList.add('occupied');
+      occupiedSpace.style.zIndex = '24';
     });
     $$('.token-slot').forEach((slot) => slot.classList.toggle('shared', slot.children.length > 1));
   }
@@ -174,6 +180,7 @@
 
   async function rollDie() {
     if (state.phase !== 'ready-to-roll') return;
+    state.directionCommitted = false;
     state.exchangeUsedThisTurn = state.exchangeUsedThisTurn || false;
     $('#die-button').classList.add('rolling');
     playTone('roll');
@@ -209,6 +216,7 @@
 
   function beginListening(mode = 'game') {
     if (state && state.isListening) return;
+    if (mode === 'game' && (!state || !['waiting-for-speech', 'event'].includes(state.phase) || state.directionCommitted)) return;
     recognitionMode = mode;
     recognition = createRecognition();
     if (!recognition) {
@@ -225,6 +233,8 @@
       }
       return;
     }
+    const attemptId = ++recognitionAttemptId;
+    let resultHandled = false;
     if (state) {
       state.isListening = true;
       if (mode === 'game') setPhase(state.challengeDirection ? 'event' : 'listening');
@@ -238,9 +248,18 @@
       setMessage(state.challengeDirection ? `Say “${state.challengeDirection}.”` : 'Listening…');
       renderStatus();
     }
-    recognition.onresult = (event) => handleSpeechResult(event.results[0][0].transcript, mode);
-    recognition.onerror = (event) => handleSpeechError(event.error, mode);
+    recognition.onresult = (event) => {
+      if (attemptId !== recognitionAttemptId || resultHandled) return;
+      resultHandled = true;
+      handleSpeechResult(event.results[0][0].transcript, mode);
+    };
+    recognition.onerror = (event) => {
+      if (attemptId !== recognitionAttemptId || resultHandled) return;
+      resultHandled = true;
+      handleSpeechError(event.error, mode);
+    };
     recognition.onend = () => {
+      if (attemptId !== recognitionAttemptId) return;
       if (state) { state.isListening = false; renderStatus(); }
       $('#test-mic-button').classList.remove('listening');
       $('#test-mic-button').disabled = false;
@@ -280,6 +299,8 @@
       $('#retry-speech').hidden = false;
       return;
     }
+    if (state.directionCommitted) return;
+    state.directionCommitted = true;
     $('#retry-speech').hidden = true;
     state.failedSpeechAttempts = 0;
     playTone('correct');
@@ -287,6 +308,7 @@
     highlightDirection(direction);
     const steps = state.challengeDirection ? 2 : state.dieValue;
     state.challengeDirection = null;
+    setPhase('moving');
     setTimeout(() => moveActiveTeam(direction, steps), 400);
   }
 
@@ -313,23 +335,29 @@
   }
 
   async function moveActiveTeam(direction, steps) {
-    if (!steps || !['clockwise', 'counterclockwise'].includes(direction)) return;
+    if (!steps || !['clockwise', 'counterclockwise'].includes(direction) || state.isMoving) return;
+    state.isMoving = true;
     state.pendingDirection = direction;
     setPhase('moving');
-    const team = state.teams[state.activeTeam];
-    const path = Core.movementPath(team.position, steps, direction);
-    for (const position of path) {
-      team.position = position;
-      renderTokens();
-      playTone('move');
-      await sleep(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 40 : MOVE_DELAY);
+    try {
+      const team = state.teams[state.activeTeam];
+      const path = Core.movementPath(team.position, steps, direction);
+      for (const position of path) {
+        team.position = position;
+        renderTokens();
+        playTone('move');
+        await sleep(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 40 : MOVE_DELAY);
+      }
+      state.pendingDirection = null;
+      if (state.challengeDirection === null && state.dieValue === null) {
+        await finishTurn();
+        return;
+      }
+      await resolveLandingSpace();
+    } finally {
+      state.isMoving = false;
+      renderStatus();
     }
-    state.pendingDirection = null;
-    if (state.challengeDirection === null && state.dieValue === null) {
-      await finishTurn();
-      return;
-    }
-    await resolveLandingSpace();
   }
 
   async function resolveLandingSpace() {
@@ -409,6 +437,7 @@
       revealCopy = 'Team A and Team B exchange board positions.';
     } else if (event === 'challenge') {
       state.challengeDirection = Math.random() < 0.5 ? 'clockwise' : 'counterclockwise';
+      state.directionCommitted = false;
       state.dieValue = null;
       setMessage(`Direction challenge! Say “${state.challengeDirection}” to move 2 spaces.`);
       revealTitle = 'Direction challenge!';
@@ -471,6 +500,7 @@
 
   async function finishTurn() {
     if (state.phase === 'victory') return;
+    recognitionAttemptId += 1;
     setPhase('turn-complete');
     await sleep(450);
     if (!state.extraTurn) state.activeTeam = state.activeTeam === 'A' ? 'B' : 'A';
@@ -478,6 +508,7 @@
     state.dieValue = null;
     state.pendingDirection = null;
     state.challengeDirection = null;
+    state.directionCommitted = false;
     state.exchangeUsedThisTurn = false;
     state.failedSpeechAttempts = 0;
     $('#die-face').textContent = '?';
@@ -586,13 +617,18 @@
   }
 
   function teacherMove(direction) {
-    if (!state || $('#manual-cw').disabled) return;
-    if (state.isListening && recognition) recognition.abort();
+    if (!state || $('#manual-cw').disabled || state.directionCommitted || state.isMoving) return;
     if (state.challengeDirection && direction !== state.challengeDirection) {
       setMessage(`The challenge requires ${state.challengeDirection}.`);
       return;
     }
     const steps = state.challengeDirection ? 2 : state.dieValue;
+    state.directionCommitted = true;
+    recognitionAttemptId += 1;
+    if (state.isListening && recognition) {
+      state.isListening = false;
+      try { recognition.abort(); } catch (_) { /* already stopped */ }
+    }
     state.challengeDirection = null;
     $('#retry-speech').hidden = true;
     closeTeacherPanel();

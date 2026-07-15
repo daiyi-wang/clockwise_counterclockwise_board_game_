@@ -121,6 +121,7 @@
       pendingDirection: null,
       isListening: false,
       isMoving: false,
+      directionCommitted: false,
       extraTurn: false,
       exchangeUsedThisTurn: false,
       failedSpeechAttempts: 0,
